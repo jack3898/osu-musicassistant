@@ -1,12 +1,13 @@
 //! Everything the app runs: the indexed library, the Subsonic server, the database watcher and
 //! the Music Assistant connection.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use lazer_library::{DataDir, Library, locate_data_dir};
-use ma_client::{MaClient, MaError};
+use ma_client::{MaClient, MaError, provider_item_id};
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{Debouncer, new_debouncer};
 use serde::Serialize;
@@ -16,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::task::JoinHandle;
 
-use crate::settings::{Settings, load_ma_token};
+use crate::settings::{self, Settings};
 
 /// Run `$body` with `$client` bound to a connected [`MaClient`], reconnecting and retrying once
 /// if the cached connection turns out to have dropped. (A macro rather than a closure because
@@ -48,6 +49,8 @@ pub struct AppState {
     settings_path: PathBuf,
     audio_cache_path: PathBuf,
     pub settings: Mutex<Settings>,
+    /// Read from the keychain once at startup: every read can show a macOS password prompt.
+    ma_token: Mutex<Option<String>>,
     runtime: AsyncMutex<Runtime>,
     ma: AsyncMutex<Option<MaSession>>,
 }
@@ -120,6 +123,7 @@ impl AppState {
             settings_path,
             audio_cache_path,
             settings: Mutex::new(settings),
+            ma_token: Mutex::new(settings::load_ma_token()),
             runtime: AsyncMutex::default(),
             ma: AsyncMutex::default(),
         }
@@ -127,6 +131,18 @@ impl AppState {
 
     pub fn settings(&self) -> Settings {
         self.settings.lock().unwrap().clone()
+    }
+
+    pub fn ma_token(&self) -> Option<String> {
+        self.ma_token.lock().unwrap().clone()
+    }
+
+    /// Save the token to the keychain, or remove it when `token` is empty.
+    pub async fn set_ma_token(&self, token: &str) -> Result<(), String> {
+        settings::store_ma_token(token)?;
+        *self.ma_token.lock().unwrap() = Some(token.trim().to_string()).filter(|t| !t.is_empty());
+        self.forget_ma_session().await;
+        Ok(())
     }
 
     pub fn save_settings(&self, settings: Settings) -> Result<(), String> {
@@ -196,6 +212,7 @@ impl AppState {
                     let cache = self.audio_cache_path.clone();
                     tokio::task::spawn_blocking(move || server.probe_audio(Some(cache)));
                 }
+                push_playlists_to_music_assistant(app);
             }
             Ok(Err(err)) => rt.library_error = Some(err.to_string()),
             Err(err) => rt.library_error = Some(err.to_string()),
@@ -245,6 +262,7 @@ impl AppState {
                 }
                 if new.view_options() != old.view_options() {
                     server.set_library(library.clone(), &new.view_options());
+                    push_playlists_to_music_assistant(app);
                 }
             }
         }
@@ -339,7 +357,7 @@ impl AppState {
             .iter()
             .map(|p| PlaylistInfo {
                 id: p.id.clone(),
-                name: p.name.clone(),
+                name: p.title.clone(),
                 song_count: p.songs.len(),
             })
             .collect()
@@ -352,7 +370,9 @@ impl AppState {
         if url.is_empty() {
             return Err("Enter your Music Assistant address in Settings first.".into());
         }
-        let token = load_ma_token().ok_or("Add a Music Assistant token in Settings first.")?;
+        let token = self
+            .ma_token()
+            .ok_or("Add a Music Assistant token in Settings first.")?;
         let mut session = self.ma.lock().await;
         if session
             .as_ref()
@@ -384,6 +404,45 @@ impl AppState {
             server_version: info.server_version.clone(),
             provider: provider.map(|p| p.name),
         })
+    }
+
+    /// Bring Music Assistant's copies of our playlists up to date: rename the ones whose name
+    /// changed (a new prefix, a renamed collection) and sync to pick up added or removed ones.
+    /// Returns how many were renamed.
+    async fn update_music_assistant_playlists(&self) -> Result<usize, String> {
+        let names: HashMap<String, String> = {
+            let rt = self.runtime.lock().await;
+            let Some(server) = &rt.server else {
+                return Ok(0);
+            };
+            let catalog = server.catalog();
+            catalog
+                .playlists
+                .iter()
+                .map(|p| (p.id.clone(), p.name.clone()))
+                .collect()
+        };
+        let provider = with_ma!(self, |client| client
+            .find_subsonic_provider(ALL_SONGS_PLAYLIST_ID, ALL_SONGS_PLAYLIST_NAME))?;
+        let Some(provider) = provider else {
+            return Ok(0);
+        };
+        let instance = provider.instance_id.as_str();
+        let imported = with_ma!(self, |client| client.library_playlists(instance))?;
+        let mut renamed = 0;
+        for playlist in &imported {
+            let Some(name) = provider_item_id(playlist, instance).and_then(|id| names.get(id))
+            else {
+                continue;
+            };
+            if playlist["name"].as_str() != Some(name.as_str()) {
+                with_ma!(self, |client| client
+                    .rename_library_playlist(playlist, name))?;
+                renamed += 1;
+            }
+        }
+        with_ma!(self, |client| client.sync_playlists(instance))?;
+        Ok(renamed)
     }
 
     pub async fn players(&self) -> Result<Vec<PlayerInfo>, String> {
@@ -423,4 +482,25 @@ impl AppState {
         settings.shuffle = shuffle;
         self.save_settings(settings)
     }
+}
+
+/// Run [`AppState::update_music_assistant_playlists`] in the background, if Music Assistant is
+/// set up.
+fn push_playlists_to_music_assistant(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    if state.settings().ma_url.trim().is_empty() || state.ma_token().is_none() {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        match app
+            .state::<AppState>()
+            .update_music_assistant_playlists()
+            .await
+        {
+            Ok(0) => {}
+            Ok(renamed) => tracing::info!(renamed, "renamed playlists in Music Assistant"),
+            Err(err) => tracing::warn!(%err, "couldn't update Music Assistant's playlists"),
+        }
+    });
 }

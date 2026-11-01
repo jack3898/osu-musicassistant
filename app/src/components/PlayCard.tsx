@@ -73,7 +73,7 @@ export function PlayCard({ status, settings, maConfigured }: Props) {
         <select value={playlistId} onChange={(e) => setPlaylistId(e.target.value)} disabled={!playlists.length}>
           {playlists.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.id === "pl-all" ? "All songs" : p.name} ({p.songCount.toLocaleString()})
+              {p.name} ({p.songCount.toLocaleString()})
             </option>
           ))}
         </select>

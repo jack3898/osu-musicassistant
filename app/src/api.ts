@@ -24,6 +24,7 @@ export interface Settings {
   hideRateEdits: boolean;
   blockedPatterns: string[];
   preferUnicode: boolean;
+  collectionPrefix: string;
   maUrl: string;
   keepInTray: boolean;
   launchAtLogin: boolean;
@@ -35,7 +36,15 @@ export interface Settings {
 
 export type SettingsUpdate = Pick<
   Settings,
-  "osuDataDir" | "port" | "hideRateEdits" | "blockedPatterns" | "preferUnicode" | "maUrl" | "keepInTray" | "launchAtLogin"
+    | "osuDataDir"
+  | "port"
+  | "hideRateEdits"
+  | "blockedPatterns"
+  | "preferUnicode"
+  | "collectionPrefix"
+  | "maUrl"
+  | "keepInTray"
+  | "launchAtLogin"
 >;
 
 export interface Playlist {

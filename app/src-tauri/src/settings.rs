@@ -23,6 +23,8 @@ pub struct Settings {
     pub hide_rate_edits: bool,
     pub blocked_patterns: Vec<String>,
     pub prefer_unicode: bool,
+    /// Prepended to collection names in Music Assistant, e.g. `osu! collection - Favourites`.
+    pub collection_prefix: String,
     /// Music Assistant's address, e.g. `https://music.example.com`.
     pub ma_url: String,
     pub keep_in_tray: bool,
@@ -42,6 +44,7 @@ impl Default for Settings {
             hide_rate_edits: true,
             blocked_patterns: Vec::new(),
             prefer_unicode: false,
+            collection_prefix: "osu! collection - ".into(),
             ma_url: String::new(),
             keep_in_tray: false,
             launch_at_login: false,
@@ -95,6 +98,7 @@ impl Settings {
                 blocked_patterns: self.blocked_patterns.clone(),
             },
             prefer_unicode: self.prefer_unicode,
+            collection_prefix: self.collection_prefix.clone(),
         }
     }
 }

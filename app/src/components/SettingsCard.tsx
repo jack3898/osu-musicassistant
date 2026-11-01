@@ -18,6 +18,7 @@ function formFrom(settings: Settings): SettingsUpdate {
     hideRateEdits: settings.hideRateEdits,
     blockedPatterns: settings.blockedPatterns,
     preferUnicode: settings.preferUnicode,
+    collectionPrefix: settings.collectionPrefix,
     maUrl: settings.maUrl,
     keepInTray: settings.keepInTray,
     launchAtLogin: settings.launchAtLogin,
@@ -183,6 +184,20 @@ export function SettingsCard({ settings, status, onSaved, onTokenChange }: Props
           </button>
         </div>
       </div>
+      <label className="field">
+        <span>Collection prefix</span>
+        <input
+          type="text"
+          spellCheck={false}
+          placeholder="No prefix"
+          value={form.collectionPrefix}
+          onChange={(e) => update("collectionPrefix", e.target.value)}
+        />
+      </label>
+      <p className="hint small">
+        Collections appear in Music Assistant as <b className="preserve-space">{form.collectionPrefix}Favourites</b>.
+        Saving renames them in Music Assistant too.
+      </p>
       <div className="row">
         <button onClick={reindex} disabled={reindexing}>
           {reindexing ? "Re-reading…" : "Re-read library now"}

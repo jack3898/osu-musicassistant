@@ -317,3 +317,7 @@ code.placeholder {
   gap: 12px;
   margin-top: 18px;
 }
+
+.preserve-space {
+  white-space: pre-wrap;
+}

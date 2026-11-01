@@ -17,6 +17,8 @@ pub struct ViewOptions {
     pub filter: SongFilter,
     /// Show titles and artists in their original script (e.g. Japanese) instead of romanised.
     pub prefer_unicode: bool,
+    /// Prepended to collection names so they stand out among other playlists.
+    pub collection_prefix: String,
 }
 
 #[derive(Debug)]
@@ -43,6 +45,8 @@ pub struct Artist {
 pub struct Playlist {
     pub id: String,
     pub name: String,
+    /// The name without [`ViewOptions::collection_prefix`], for UIs that already say what it is.
+    pub title: String,
     pub comment: String,
     /// Indices into [`Library::songs`].
     pub songs: Vec<usize>,
@@ -121,6 +125,7 @@ impl Catalog {
         let mut playlists = vec![Playlist {
             id: ALL_SONGS_PLAYLIST_ID.into(),
             name: ALL_SONGS_PLAYLIST_NAME.into(),
+            title: "All songs".into(),
             comment: "Every song in your osu! library".into(),
             songs: songs
                 .iter()
@@ -132,7 +137,8 @@ impl Catalog {
         for collection in &library.collections {
             playlists.push(Playlist {
                 id: format!("pl-{}", collection.id),
-                name: collection.name.clone(),
+                name: format!("{}{}", options.collection_prefix, collection.name),
+                title: collection.name.clone(),
                 comment: "osu! collection".into(),
                 songs: collection
                     .song_ids
@@ -297,5 +303,20 @@ mod tests {
         };
         let catalog = Catalog::new(library(), &options);
         assert_eq!(catalog.album("al-set1").unwrap().songs.len(), 2);
+    }
+
+    #[test]
+    fn collections_get_the_prefix() {
+        let options = ViewOptions {
+            collection_prefix: "osu! collection - ".into(),
+            ..Default::default()
+        };
+        let catalog = Catalog::new(library(), &options);
+        let favourites = catalog.playlist("pl-c1").unwrap();
+        assert_eq!(favourites.name, "osu! collection - Favourites");
+        assert_eq!(favourites.title, "Favourites");
+        // "All songs" doubles as the marker the app finds Music Assistant's provider by.
+        let all = catalog.playlist(ALL_SONGS_PLAYLIST_ID).unwrap();
+        assert_eq!(all.name, ALL_SONGS_PLAYLIST_NAME);
     }
 }

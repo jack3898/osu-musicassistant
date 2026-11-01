@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::settings::{self, Settings, generate_password, load_ma_token};
+use crate::settings::{Settings, generate_password};
 use crate::state::{AppState, MaInfo, PlayerInfo, PlaylistInfo, Status};
 
 /// Settings as the frontend sees them: never the token itself, just whether one is saved.
@@ -16,10 +16,10 @@ pub struct SettingsView {
     has_ma_token: bool,
 }
 
-fn view(settings: Settings) -> SettingsView {
+fn view(state: &AppState, settings: Settings) -> SettingsView {
     SettingsView {
         settings,
-        has_ma_token: load_ma_token().is_some(),
+        has_ma_token: state.ma_token().is_some(),
     }
 }
 
@@ -30,7 +30,7 @@ pub async fn get_status(state: State<'_, AppState>) -> Result<Status, String> {
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> SettingsView {
-    view(state.settings())
+    view(&state, state.settings())
 }
 
 /// The fields the settings form edits.
@@ -42,6 +42,7 @@ pub struct SettingsUpdate {
     hide_rate_edits: bool,
     blocked_patterns: Vec<String>,
     prefer_unicode: bool,
+    collection_prefix: String,
     ma_url: String,
     keep_in_tray: bool,
     launch_at_login: bool,
@@ -72,6 +73,8 @@ pub async fn save_settings(
             .filter(|p| !p.is_empty())
             .collect(),
         prefer_unicode: update.prefer_unicode,
+        // Not trimmed: a trailing space or separator is part of the prefix.
+        collection_prefix: update.collection_prefix,
         ma_url: update.ma_url.trim().to_string(),
         keep_in_tray: update.keep_in_tray,
         launch_at_login: update.launch_at_login,
@@ -88,7 +91,7 @@ pub async fn save_settings(
     }
     state.save_settings(new.clone())?;
     state.apply_settings(&app, &old).await;
-    Ok(view(new))
+    Ok(view(&state, new))
 }
 
 #[tauri::command]
@@ -103,7 +106,7 @@ pub async fn regenerate_password(
     };
     state.save_settings(new.clone())?;
     state.apply_settings(&app, &old).await;
-    Ok(view(new))
+    Ok(view(&state, new))
 }
 
 #[tauri::command]
@@ -111,9 +114,8 @@ pub async fn set_ma_token(
     state: State<'_, AppState>,
     token: String,
 ) -> Result<SettingsView, String> {
-    settings::store_ma_token(&token)?;
-    state.forget_ma_session().await;
-    Ok(view(state.settings()))
+    state.set_ma_token(&token).await?;
+    Ok(view(&state, state.settings()))
 }
 
 #[tauri::command]

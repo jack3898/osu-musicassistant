@@ -254,6 +254,59 @@ impl MaClient {
             .await
             .map(|_| ())
     }
+
+    /// Library playlists imported from `provider_instance`, as full item objects.
+    pub async fn library_playlists(&self, provider_instance: &str) -> Result<Vec<Value>> {
+        const PAGE: usize = 500;
+        let mut playlists = Vec::new();
+        loop {
+            let page: Vec<Value> = self
+                .command(
+                    "music/playlists/library_items",
+                    json!({
+                        "provider": provider_instance,
+                        "summary": false,
+                        "limit": PAGE,
+                        "offset": playlists.len(),
+                    }),
+                )
+                .await?;
+            let done = page.len() < PAGE;
+            playlists.extend(page);
+            if done {
+                return Ok(playlists);
+            }
+        }
+    }
+
+    /// Rename a library playlist (an item from [`Self::library_playlists`]). Library syncs never
+    /// rename playlists Music Assistant already has, so name changes have to be pushed this way.
+    pub async fn rename_library_playlist(&self, playlist: &Value, name: &str) -> Result<()> {
+        let mut update = playlist.clone();
+        update["name"] = name.into();
+        // Recomputed from the new name.
+        update["sort_name"] = Value::Null;
+        // Overwrite, or Music Assistant keeps the name it has. Everything else is sent back as is.
+        let args = json!({ "item_id": playlist["item_id"], "update": update, "overwrite": true });
+        self.raw_command("music/playlists/update", args)
+            .await
+            .map(|_| ())
+    }
+
+    /// Start a background playlist sync for one provider, picking up added and removed playlists.
+    pub async fn sync_playlists(&self, provider_instance: &str) -> Result<()> {
+        let args = json!({ "media_types": ["playlist"], "providers": [provider_instance] });
+        self.raw_command("music/sync", args).await.map(|_| ())
+    }
+}
+
+/// The ID `provider_instance` knows a library item by.
+pub fn provider_item_id<'a>(item: &'a Value, provider_instance: &str) -> Option<&'a str> {
+    item["provider_mappings"]
+        .as_array()?
+        .iter()
+        .find(|m| m["provider_instance"] == provider_instance)?["item_id"]
+        .as_str()
 }
 
 fn playlist_uri(provider_instance: &str, playlist_id: &str) -> String {
