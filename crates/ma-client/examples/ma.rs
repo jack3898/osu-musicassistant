@@ -3,8 +3,10 @@
 //! Usage (MA_URL and MA_TOKEN in the environment):
 //!   cargo run -p ma-client --example ma -- players
 //!   cargo run -p ma-client --example ma -- play <player id> <playlist id> [--shuffle]
+//!   cargo run -p ma-client --example ma -- queue <player id>
 
 use ma_client::MaClient;
+use serde_json::{Value, json};
 
 /// Must match subsonic-server's "All songs" playlist.
 const ALL_SONGS_ID: &str = "pl-all";
@@ -48,6 +50,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "playing {playlist} on {player} ({})",
                 if shuffle { "shuffled" } else { "in order" }
             );
+        }
+        Some("queue") => {
+            let player = args.get(1).ok_or("usage: queue <player id>")?;
+            let queue: Value = client
+                .command("player_queues/get", json!({ "queue_id": player }))
+                .await?;
+            println!(
+                "shuffle: {}  state: {}",
+                queue["shuffle_enabled"], queue["state"]
+            );
+            let items: Vec<Value> = client
+                .command(
+                    "player_queues/items",
+                    json!({ "queue_id": player, "limit": 10 }),
+                )
+                .await?;
+            for (i, item) in items.iter().enumerate() {
+                println!("  {:>2}. {}", i + 1, item["name"].as_str().unwrap_or("?"));
+            }
         }
         _ => {
             println!("\nplayers:");

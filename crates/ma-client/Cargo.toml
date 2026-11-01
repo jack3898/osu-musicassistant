@@ -16,4 +16,5 @@ tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-native-roots"]
 tracing = "0.1.44"
 
 [dev-dependencies]
+serde_json = "1.0.154"
 tracing-subscriber = "0.3.23"
