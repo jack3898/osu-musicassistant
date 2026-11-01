@@ -2,10 +2,12 @@
 //! database and indexing songs and collections from it.
 
 pub mod data_dir;
+pub mod filter;
 pub mod index;
 pub mod realm;
 pub mod snapshot;
 
 pub use data_dir::{DataDir, locate_data_dir};
+pub use filter::SongFilter;
 pub use index::{Collection, Library, LibraryError, Song};
 pub use snapshot::Snapshot;

@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::time::Instant;
 
-use lazer_library::{DataDir, Library, locate_data_dir};
+use lazer_library::{DataDir, Library, SongFilter, locate_data_dir};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = match std::env::args().nth(1) {
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "songs: {} total, {} in \"All songs\" ({} practice rate edits, {} bundled with lazer)",
         library.songs.len(),
-        library.all_songs().count(),
+        library.all_songs(&SongFilter::default()).count(),
         count(|s| s.rate_edit),
         count(|s| s.protected),
     );

@@ -1,0 +1,29 @@
+[package]
+name = "subsonic-server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum = "0.8.9"
+form_urlencoded = "1.2.2"
+hex = "0.4.3"
+humantime = "2.4.0"
+if-addrs = "0.15.0"
+lazer-library.workspace = true
+lofty = "0.25.5"
+md-5 = "0.11.0"
+mime = "0.3.17"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["full"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.1", features = ["fs"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+dirs = "7.0.0"
+tempfile = "3.27.0"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

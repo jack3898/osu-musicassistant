@@ -9,6 +9,7 @@ use std::collections::hash_map::Entry;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::data_dir::DataDir;
+use crate::filter::SongFilter;
 use crate::realm::{Class, Object, Property, Realm, RealmError, Value};
 use crate::snapshot::Snapshot;
 
@@ -20,7 +21,7 @@ pub enum LibraryError {
     Realm(#[from] RealmError),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Song {
     /// SHA-256 of the audio file; also its name in lazer's file store.
     pub id: String,
@@ -73,6 +74,20 @@ pub struct Library {
 }
 
 impl Library {
+    pub fn new(songs: Vec<Song>, collections: Vec<Collection>, schema_version: u64) -> Self {
+        let songs_by_id = songs
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.id.clone(), i))
+            .collect();
+        Self {
+            songs,
+            collections,
+            schema_version,
+            songs_by_id,
+        }
+    }
+
     /// Snapshot the database in `data_dir` and index it.
     pub fn load(data_dir: &DataDir) -> Result<Self, LibraryError> {
         let snapshot = Snapshot::take(&data_dir.database())?;
@@ -88,9 +103,11 @@ impl Library {
         self.collections.iter().find(|c| c.id == id)
     }
 
-    /// What "All songs" plays: everything the user imported, minus practice rate edits.
-    pub fn all_songs(&self) -> impl Iterator<Item = &Song> {
-        self.songs.iter().filter(|s| !s.protected && !s.rate_edit)
+    /// What "All songs" plays: everything the user imported that `filter` allows.
+    pub fn all_songs<'a>(&'a self, filter: &'a SongFilter) -> impl Iterator<Item = &'a Song> {
+        self.songs
+            .iter()
+            .filter(|s| !s.protected && filter.allows(s))
     }
 }
 
@@ -394,14 +411,12 @@ fn double_of(obj: &Object<'_>, prop: Property, name: &str) -> Result<f64, RealmE
 
 fn time_of(obj: &Object<'_>, prop: Property, name: &str) -> Result<Option<SystemTime>, RealmError> {
     match obj.get(prop)? {
-        Value::Timestamp { seconds, nanos } => {
-            let offset = Duration::new(seconds.unsigned_abs(), nanos.unsigned_abs());
-            Ok(if seconds >= 0 {
-                UNIX_EPOCH.checked_add(offset)
-            } else {
-                UNIX_EPOCH.checked_sub(offset)
-            })
+        // .NET writes `DateTimeOffset.MinValue` (year 1) for "never", so anything before the Unix
+        // epoch is treated as unset.
+        Value::Timestamp { seconds, nanos } if seconds >= 0 => {
+            Ok(UNIX_EPOCH.checked_add(Duration::new(seconds.unsigned_abs(), nanos.unsigned_abs())))
         }
+        Value::Timestamp { .. } => Ok(None),
         Value::Null => Ok(None),
         other => Err(unexpected(name, "timestamp", other)),
     }
