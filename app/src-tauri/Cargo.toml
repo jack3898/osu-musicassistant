@@ -1,0 +1,32 @@
+[package]
+name = "osu-musicassistant"
+version = "0.1.0"
+description = "Play your osu!lazer library through Music Assistant"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "osu_musicassistant_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+lazer-library.workspace = true
+subsonic-server.workspace = true
+ma-client.workspace = true
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", features = ["full"] }
+tracing = "0.1.44"
+thiserror = "2.0.21"
+keyring = "4.2.0"
+notify-debouncer-mini = "0.7.0"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+getrandom = "0.4.3"

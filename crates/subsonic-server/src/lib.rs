@@ -54,6 +54,11 @@ impl Server {
         Router::new().fallback(api::handle).with_state(self.clone())
     }
 
+    /// Serve the API on `listener` until the task is dropped or aborted.
+    pub async fn serve(&self, listener: tokio::net::TcpListener) -> std::io::Result<()> {
+        axum::serve(listener, self.router()).await
+    }
+
     pub fn data_dir(&self) -> &DataDir {
         &self.inner.data_dir
     }

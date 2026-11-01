@@ -6,3 +6,4 @@ node_modules/
 *.realm.lock
 *.realm.management/
 *.realm.note
+/app/dist

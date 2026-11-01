@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "app/src-tauri"]
 
 [workspace.package]
 edition = "2024"
@@ -10,3 +10,5 @@ repository = "https://github.com/jack3898/osu-musicassistant"
 [workspace.dependencies]
 realm-sys = { path = "crates/realm-sys" }
 lazer-library = { path = "crates/lazer-library" }
+subsonic-server = { path = "crates/subsonic-server" }
+ma-client = { path = "crates/ma-client" }
