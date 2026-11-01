@@ -15,7 +15,9 @@ impl DataDir {
     /// Use `root` as the data directory if it contains a lazer database.
     pub fn new(root: impl Into<PathBuf>) -> Option<Self> {
         let root = root.into();
-        root.join(DATABASE_FILENAME).is_file().then_some(Self { root })
+        root.join(DATABASE_FILENAME)
+            .is_file()
+            .then_some(Self { root })
     }
 
     pub fn root(&self) -> &Path {
@@ -29,7 +31,13 @@ impl DataDir {
     /// Where lazer stores the file with this SHA-256 hash: `files/a/ab/abcdef…`.
     pub fn file_path(&self, hash: &str) -> Option<PathBuf> {
         let valid = hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit());
-        valid.then(|| self.root.join("files").join(&hash[..1]).join(&hash[..2]).join(hash))
+        valid.then(|| {
+            self.root
+                .join("files")
+                .join(&hash[..1])
+                .join(&hash[..2])
+                .join(hash)
+        })
     }
 }
 
@@ -39,7 +47,9 @@ pub fn default_data_dir() -> Option<PathBuf> {
         // Lazer follows XDG; the Flatpak build keeps its data inside the sandbox.
         let native = dirs::data_dir().map(|d| d.join("osu"));
         let flatpak = dirs::home_dir().map(|h| h.join(".var/app/sh.ppy.osu/data/osu"));
-        return native.filter(|p| p.is_dir()).or(flatpak.filter(|p| p.is_dir()));
+        return native
+            .filter(|p| p.is_dir())
+            .or(flatpak.filter(|p| p.is_dir()));
     }
     // %APPDATA%\osu on Windows, ~/Library/Application Support/osu on macOS.
     dirs::data_dir().map(|d| d.join("osu"))
@@ -77,16 +87,24 @@ mod tests {
 
     #[test]
     fn parses_storage_ini() {
-        assert_eq!(parse_full_path("FullPath = /Volumes/Games/osu\n"), Some("/Volumes/Games/osu".into()));
+        assert_eq!(
+            parse_full_path("FullPath = /Volumes/Games/osu\n"),
+            Some("/Volumes/Games/osu".into())
+        );
         assert_eq!(parse_full_path("FullPath = \n"), None);
         assert_eq!(parse_full_path("Other = x"), None);
     }
 
     #[test]
     fn file_path_uses_hash_prefixes() {
-        let dir = DataDir { root: "/osu".into() };
+        let dir = DataDir {
+            root: "/osu".into(),
+        };
         let hash = "ab".repeat(32);
-        assert_eq!(dir.file_path(&hash), Some(PathBuf::from(format!("/osu/files/a/ab/{hash}"))));
+        assert_eq!(
+            dir.file_path(&hash),
+            Some(PathBuf::from(format!("/osu/files/a/ab/{hash}")))
+        );
         assert_eq!(dir.file_path("../../etc/passwd"), None);
     }
 }

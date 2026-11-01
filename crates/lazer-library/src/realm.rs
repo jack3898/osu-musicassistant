@@ -22,7 +22,11 @@ pub enum RealmError {
     #[error("property `{class}.{property}` not found in the realm file")]
     MissingProperty { class: String, property: String },
     #[error("expected {expected} for `{property}`, found {found:?}")]
-    UnexpectedType { property: String, expected: &'static str, found: Value },
+    UnexpectedType {
+        property: String,
+        expected: &'static str,
+        found: Value,
+    },
     #[error("invalid path: {0}")]
     InvalidPath(String),
 }
@@ -41,7 +45,10 @@ fn last_error() -> RealmError {
             let code = err.error.0 as i32;
             RealmError::Core { code, message }
         } else {
-            RealmError::Core { code: -1, message: "unknown error".into() }
+            RealmError::Core {
+                code: -1,
+                message: "unknown error".into(),
+            }
         }
     }
 }
@@ -58,7 +65,9 @@ unsafe fn cstr_to_string(ptr: *const c_char) -> String {
     if ptr.is_null() {
         String::new()
     } else {
-        unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned()
+        unsafe { CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .into_owned()
     }
 }
 
@@ -85,16 +94,24 @@ pub struct Realm {
 impl Realm {
     /// Open `path` read-only. The file must not be modified while it is open.
     pub fn open_immutable(path: &Path) -> Result<Self> {
-        let c_path = CString::new(path.to_str().ok_or_else(|| RealmError::InvalidPath(path.display().to_string()))?)
-            .map_err(|_| RealmError::InvalidPath(path.display().to_string()))?;
+        let c_path = CString::new(
+            path.to_str()
+                .ok_or_else(|| RealmError::InvalidPath(path.display().to_string()))?,
+        )
+        .map_err(|_| RealmError::InvalidPath(path.display().to_string()))?;
         unsafe {
             let config = Handle(non_null(sys::realm_config_new())?);
             sys::realm_config_set_path(config.as_ptr(), c_path.as_ptr());
-            sys::realm_config_set_schema_mode(config.as_ptr(), sys::realm_schema_mode::RLM_SCHEMA_MODE_IMMUTABLE);
+            sys::realm_config_set_schema_mode(
+                config.as_ptr(),
+                sys::realm_schema_mode::RLM_SCHEMA_MODE_IMMUTABLE,
+            );
             sys::realm_config_set_cached(config.as_ptr(), false);
             sys::realm_config_set_automatic_change_notifications(config.as_ptr(), false);
             let realm = non_null(sys::realm_open(config.as_ptr()))?;
-            Ok(Self { handle: Handle(realm) })
+            Ok(Self {
+                handle: Handle(realm),
+            })
         }
     }
 
@@ -113,7 +130,12 @@ impl Realm {
             let n = sys::realm_get_num_classes(self.ptr());
             let mut keys = vec![0; n];
             let mut out_n = 0;
-            check(sys::realm_get_class_keys(self.ptr(), keys.as_mut_ptr(), n, &mut out_n))?;
+            check(sys::realm_get_class_keys(
+                self.ptr(),
+                keys.as_mut_ptr(),
+                n,
+                &mut out_n,
+            ))?;
             keys.truncate(out_n);
             keys.into_iter()
                 .map(|key| {
@@ -131,7 +153,12 @@ impl Realm {
         unsafe {
             let mut found = false;
             let mut info = sys::realm_class_info_t::default();
-            check(sys::realm_find_class(self.ptr(), c_name.as_ptr(), &mut found, &mut info))?;
+            check(sys::realm_find_class(
+                self.ptr(),
+                c_name.as_ptr(),
+                &mut found,
+                &mut info,
+            ))?;
             if !found {
                 return Err(RealmError::MissingClass(name.into()));
             }
@@ -150,25 +177,36 @@ impl Realm {
                 .map(|p| {
                     let property = Property {
                         key: p.key,
-                        is_collection: p.collection_type != sys::realm_collection_type::RLM_COLLECTION_TYPE_NONE,
+                        is_collection: p.collection_type
+                            != sys::realm_collection_type::RLM_COLLECTION_TYPE_NONE,
                     };
                     (cstr_to_string(p.name), property)
                 })
                 .collect();
-            Ok(Class { key: info.key, name: name.into(), properties })
+            Ok(Class {
+                key: info.key,
+                name: name.into(),
+                properties,
+            })
         }
     }
 
     /// Every object of `class`.
     pub fn all<'r>(&'r self, class: &Class) -> Result<Results<'r>> {
         let results = unsafe { non_null(sys::realm_object_find_all(self.ptr(), class.key))? };
-        Ok(Results { handle: Handle(results), _realm: PhantomData })
+        Ok(Results {
+            handle: Handle(results),
+            _realm: PhantomData,
+        })
     }
 
     /// Resolve a link value to the object it points at.
     pub fn object<'r>(&'r self, link: Link) -> Result<Object<'r>> {
         let obj = unsafe { non_null(sys::realm_get_object(self.ptr(), link.class, link.key))? };
-        Ok(Object { handle: Handle(obj), _realm: PhantomData })
+        Ok(Object {
+            handle: Handle(obj),
+            _realm: PhantomData,
+        })
     }
 }
 
@@ -196,10 +234,13 @@ impl Class {
 
     /// Look up a property; fails if lazer's schema no longer has it.
     pub fn property(&self, name: &str) -> Result<Property> {
-        self.properties.get(name).copied().ok_or_else(|| RealmError::MissingProperty {
-            class: self.name.clone(),
-            property: name.into(),
-        })
+        self.properties
+            .get(name)
+            .copied()
+            .ok_or_else(|| RealmError::MissingProperty {
+                class: self.name.clone(),
+                property: name.into(),
+            })
     }
 }
 
@@ -220,7 +261,10 @@ pub enum Value {
     Double(f64),
     Uuid([u8; 16]),
     /// Seconds and nanoseconds since the Unix epoch.
-    Timestamp { seconds: i64, nanos: i32 },
+    Timestamp {
+        seconds: i64,
+        nanos: i32,
+    },
     Link(Link),
     /// A type we don't read (binary, decimal128, object id, ...).
     Unsupported(u32),
@@ -247,8 +291,14 @@ impl Value {
                 T::RLM_TYPE_FLOAT => Value::Float(u.fnum),
                 T::RLM_TYPE_DOUBLE => Value::Double(u.dnum),
                 T::RLM_TYPE_UUID => Value::Uuid(u.uuid.bytes),
-                T::RLM_TYPE_TIMESTAMP => Value::Timestamp { seconds: u.timestamp.seconds, nanos: u.timestamp.nanoseconds },
-                T::RLM_TYPE_LINK => Value::Link(Link { class: u.link.target_table, key: u.link.target }),
+                T::RLM_TYPE_TIMESTAMP => Value::Timestamp {
+                    seconds: u.timestamp.seconds,
+                    nanos: u.timestamp.nanoseconds,
+                },
+                T::RLM_TYPE_LINK => Value::Link(Link {
+                    class: u.link.target_table,
+                    key: u.link.target,
+                }),
                 other => Value::Unsupported(other.0),
             }
         }
@@ -273,7 +323,10 @@ impl<'r> Results<'r> {
 
     pub fn get(&self, index: usize) -> Result<Object<'r>> {
         let obj = unsafe { non_null(sys::realm_results_get_object(self.handle.as_ptr(), index))? };
-        Ok(Object { handle: Handle(obj), _realm: PhantomData })
+        Ok(Object {
+            handle: Handle(obj),
+            _realm: PhantomData,
+        })
     }
 
     pub fn iter(&self) -> Result<impl Iterator<Item = Result<Object<'r>>> + '_> {
@@ -296,7 +349,10 @@ impl<'r> Object<'r> {
     pub fn list(&self, property: Property) -> Result<List<'r>> {
         debug_assert!(property.is_collection);
         let list = unsafe { non_null(sys::realm_get_list(self.handle.as_ptr(), property.key))? };
-        Ok(List { handle: Handle(list), _realm: PhantomData })
+        Ok(List {
+            handle: Handle(list),
+            _realm: PhantomData,
+        })
     }
 
     /// Follow a to-one link property. `None` if the link is null.
@@ -304,8 +360,16 @@ impl<'r> Object<'r> {
         if self.get(property)? == Value::Null {
             return Ok(None);
         }
-        let obj = unsafe { non_null(sys::realm_get_linked_object(self.handle.as_ptr(), property.key))? };
-        Ok(Some(Object { handle: Handle(obj), _realm: PhantomData }))
+        let obj = unsafe {
+            non_null(sys::realm_get_linked_object(
+                self.handle.as_ptr(),
+                property.key,
+            ))?
+        };
+        Ok(Some(Object {
+            handle: Handle(obj),
+            _realm: PhantomData,
+        }))
     }
 }
 
@@ -333,7 +397,15 @@ impl<'r> List<'r> {
 
     /// The linked (or embedded) object at `index`.
     pub fn object(&self, index: usize) -> Result<Object<'r>> {
-        let obj = unsafe { non_null(sys::realm_list_get_linked_object(self.handle.as_ptr(), index))? };
-        Ok(Object { handle: Handle(obj), _realm: PhantomData })
+        let obj = unsafe {
+            non_null(sys::realm_list_get_linked_object(
+                self.handle.as_ptr(),
+                index,
+            ))?
+        };
+        Ok(Object {
+            handle: Handle(obj),
+            _realm: PhantomData,
+        })
     }
 }

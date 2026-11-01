@@ -10,7 +10,10 @@ fn main() {
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", header.display());
-    println!("cargo:rerun-if-changed={}", core_dir.join("dependencies.yml").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        core_dir.join("dependencies.yml").display()
+    );
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
@@ -33,12 +36,28 @@ fn main() {
     }
     let build_dir = cfg.build().join("build");
 
-    for sub in ["src/realm/object-store/c_api", "src/realm/object-store", "src/realm/parser", "src/realm"] {
-        println!("cargo:rustc-link-search=native={}", build_dir.join(sub).display());
+    for sub in [
+        "src/realm/object-store/c_api",
+        "src/realm/object-store",
+        "src/realm/parser",
+        "src/realm",
+    ] {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            build_dir.join(sub).display()
+        );
         // Multi-config generators (Visual Studio) put libraries in a per-configuration folder.
-        println!("cargo:rustc-link-search=native={}", build_dir.join(sub).join("Release").display());
+        println!(
+            "cargo:rustc-link-search=native={}",
+            build_dir.join(sub).join("Release").display()
+        );
     }
-    for lib in ["realm-ffi-static", "realm-object-store", "realm-parser", "realm"] {
+    for lib in [
+        "realm-ffi-static",
+        "realm-object-store",
+        "realm-parser",
+        "realm",
+    ] {
         println!("cargo:rustc-link-lib=static={lib}");
     }
     match target_os.as_str() {
@@ -65,7 +84,10 @@ fn main() {
         .allowlist_type("realm_.*")
         .allowlist_var("RLM_.*")
         // Newtype enums accept any value C hands back, including OR-ed flags.
-        .default_enum_style(bindgen::EnumVariation::NewType { is_bitfield: false, is_global: false })
+        .default_enum_style(bindgen::EnumVariation::NewType {
+            is_bitfield: false,
+            is_global: false,
+        })
         .bitfield_enum("realm_(class|property)_flags.*|realm_column_attr.*")
         .prepend_enum_name(false)
         .derive_default(true)

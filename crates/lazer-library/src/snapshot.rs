@@ -27,7 +27,9 @@ pub struct Snapshot {
 impl Snapshot {
     /// Copy `source` into a fresh temporary directory, retrying if it changes mid-copy.
     pub fn take(source: &Path) -> io::Result<Self> {
-        let dir = tempfile::Builder::new().prefix("osu-musicassistant-").tempdir()?;
+        let dir = tempfile::Builder::new()
+            .prefix("osu-musicassistant-")
+            .tempdir()?;
         let dest = dir.path().join(DATABASE_FILENAME);
         for attempt in 1..=ATTEMPTS {
             let before = fingerprint(source)?;
@@ -39,7 +41,9 @@ impl Snapshot {
                 thread::sleep(RETRY_DELAY);
             }
         }
-        Err(io::Error::other("osu! kept writing to its database while it was being copied; try again later"))
+        Err(io::Error::other(
+            "osu! kept writing to its database while it was being copied; try again later",
+        ))
     }
 
     pub fn path(&self) -> PathBuf {
