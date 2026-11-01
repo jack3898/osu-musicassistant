@@ -1,0 +1,11 @@
+[package]
+name = "lazer-library"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+realm-sys.workspace = true
+dirs = "6"
+tempfile = "3"
+thiserror = "2"

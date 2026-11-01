@@ -1,0 +1,4 @@
+[submodule "vendor/realm-core"]
+	path = vendor/realm-core
+	url = https://github.com/realm/realm-core.git
+	shallow = true

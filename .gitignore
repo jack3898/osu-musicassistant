@@ -1,0 +1,8 @@
+/target
+node_modules/
+.DS_Store
+# never commit a real osu! database
+*.realm
+*.realm.lock
+*.realm.management/
+*.realm.note

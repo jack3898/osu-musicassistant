@@ -1,0 +1,12 @@
+[package]
+name = "realm-sys"
+version = "0.1.0"
+description = "Raw bindings to the realm-core C API, built from the vendored realm-core submodule"
+edition.workspace = true
+license = "Apache-2.0"
+links = "realm-ffi-static"
+build = "build.rs"
+
+[build-dependencies]
+bindgen = "0.72"
+cmake = "0.1"
